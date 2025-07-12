@@ -6,8 +6,8 @@ from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === TOKEN BOT TELEGRAM & ADMIN ===
-TOKEN = "7778600296:AAHkxfFBmEpCZ_L4e_r0PINXK7wOxghXuOE"
-ADMIN_ID = 123456789  # Ganti dengan chat_id kamu dari @userinfobot
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 bot = telebot.TeleBot(TOKEN)
 
