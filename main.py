@@ -9,13 +9,15 @@ from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === Ambil token dan ID admin dari environment variable ===
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
-
+TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 bot = telebot.TeleBot(TOKEN)
 
 # === Setup Google Sheets credentials dari ENV ===
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
@@ -26,9 +28,11 @@ menu_sheet = sheet.worksheet("DATA_MENU")
 transaksi_sheet = sheet.worksheet("TRANSAKSI")
 rekap_sheet = sheet.worksheet("REKAP_HARIAN")
 
+
 # === Ambil data menu ===
 def get_menu_data():
     return menu_sheet.get_all_records()
+
 
 # === Update sisa stok secara real time ke REKAP_HARIAN ===
 def update_sisa_stok_ke_rekap():
@@ -43,7 +47,8 @@ def update_sisa_stok_ke_rekap():
         sisa_stok_dict[row["Menu"]] = row["Stok_Awal"]
         total_sisa += row["Stok_Awal"]
 
-    detail_sisa = "\n".join([f"{menu}: {stok}" for menu, stok in sisa_stok_dict.items()])
+    detail_sisa = "\n".join(
+        [f"{menu}: {stok}" for menu, stok in sisa_stok_dict.items()])
 
     rekap_data = rekap_sheet.get_all_records()
     tanggal_list = [r["Tanggal"] for r in rekap_data]
@@ -54,6 +59,7 @@ def update_sisa_stok_ke_rekap():
         rekap_sheet.update_acell(f"E{row_idx}", total_sisa)
     else:
         rekap_sheet.append_row([hari_ini, 0, 0, detail_sisa, total_sisa])
+
 
 # === Reset stok harian otomatis ===
 def reset_stok_harian():
@@ -70,7 +76,8 @@ def reset_stok_harian():
         total_sisa += sisa_stok
         menu_sheet.update_acell(f"D{i+2}", 100)  # Reset ke 100
 
-    detail_sisa = "\n".join([f"{menu}: {stok}" for menu, stok in sisa_stok_dict.items()])
+    detail_sisa = "\n".join(
+        [f"{menu}: {stok}" for menu, stok in sisa_stok_dict.items()])
     rekap_data = rekap_sheet.get_all_records()
     tanggal_list = [r["Tanggal"] for r in rekap_data]
 
@@ -80,6 +87,7 @@ def reset_stok_harian():
         rekap_sheet.update_acell(f"E{row_idx}", total_sisa)
     else:
         rekap_sheet.append_row([hari_ini, 0, 0, detail_sisa, total_sisa])
+
 
 # === Jalankan reset stok jam 00:00 WIB setiap hari ===
 def jadwal_reset_stok():
@@ -91,17 +99,23 @@ def jadwal_reset_stok():
             time.sleep(60)
         time.sleep(30)
 
+
 threading.Thread(target=jadwal_reset_stok, daemon=True).start()
+
 
 # === Mulai Bot ===
 @bot.message_handler(commands=["start"])
 def start(message):
     menus = get_menu_data()
-    markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+    markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True,
+                                               resize_keyboard=True)
     for m in menus:
         markup.add(m["Menu"])
-    msg = bot.send_message(message.chat.id, "☕ Hai! Silakan pilih menu kopi:", reply_markup=markup)
+    msg = bot.send_message(message.chat.id,
+                           "☕ Hai! Silakan pilih menu kopi:",
+                           reply_markup=markup)
     bot.register_next_step_handler(msg, proses_menu)
+
 
 def proses_menu(message):
     menu = message.text
@@ -111,9 +125,11 @@ def proses_menu(message):
             harga = m["Harga_Jual"]
             hpp = m["HPP"]
             msg = bot.send_message(message.chat.id, f"Berapa cup {menu}?")
-            bot.register_next_step_handler(msg, lambda msg: simpan_transaksi(msg, menu, harga, hpp))
+            bot.register_next_step_handler(
+                msg, lambda msg: simpan_transaksi(msg, menu, harga, hpp))
             return
     bot.send_message(message.chat.id, "❌ Menu tidak ditemukan.")
+
 
 def simpan_transaksi(message, menu, harga, hpp):
     try:
@@ -125,7 +141,8 @@ def simpan_transaksi(message, menu, harga, hpp):
         total = jumlah * harga
         laba = jumlah * (harga - hpp)
 
-        transaksi_sheet.append_row([tanggal, waktu, menu, jumlah, harga, hpp, total, laba])
+        transaksi_sheet.append_row(
+            [tanggal, waktu, menu, jumlah, harga, hpp, total, laba])
 
         stok_data = menu_sheet.get_all_records()
         for i, row in enumerate(stok_data):
@@ -133,12 +150,16 @@ def simpan_transaksi(message, menu, harga, hpp):
                 stok_sekarang = row["Stok_Awal"] - jumlah
                 menu_sheet.update_acell(f"D{i+2}", stok_sekarang)
                 if stok_sekarang <= 5:
-                    bot.send_message(ADMIN_ID, f"⚠️ Stok {menu} tinggal {stok_sekarang} cup!")
+                    bot.send_message(
+                        ADMIN_ID,
+                        f"⚠️ Stok {menu} tinggal {stok_sekarang} cup!")
                 break
 
         transaksi_data = transaksi_sheet.get_all_records()
-        total_hari_ini = sum([t["Total"] for t in transaksi_data if t["Tanggal"] == tanggal])
-        laba_hari_ini = sum([t["Laba"] for t in transaksi_data if t["Tanggal"] == tanggal])
+        total_hari_ini = sum(
+            [t["Total"] for t in transaksi_data if t["Tanggal"] == tanggal])
+        laba_hari_ini = sum(
+            [t["Laba"] for t in transaksi_data if t["Tanggal"] == tanggal])
 
         rekap_data = rekap_sheet.get_all_records()
         tanggal_list = [r["Tanggal"] for r in rekap_data]
@@ -152,10 +173,14 @@ def simpan_transaksi(message, menu, harga, hpp):
 
         update_sisa_stok_ke_rekap()
 
-        bot.send_message(message.chat.id, f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}")
+        bot.send_message(
+            message.chat.id,
+            f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}"
+        )
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Terjadi kesalahan:\n{e}")
+
 
 # === Jalankan Bot ===
 bot.polling()
