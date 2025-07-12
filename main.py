@@ -4,6 +4,7 @@ import os
 import pytz
 from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
+import json
 
 # === TOKEN BOT TELEGRAM & ADMIN ===
 TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -15,8 +16,8 @@ bot = telebot.TeleBot(TOKEN)
 with open("google_credentials.json", "w") as f:
     f.write(os.getenv("GOOGLE_CREDS"))
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
+creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # === Akses Spreadsheet dan Sheet ===
