@@ -16,7 +16,7 @@ with open("google_credentials.json", "w") as f:
     f.write(os.getenv("GOOGLE_CREDS"))
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("google_credentials.json", scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
 client = gspread.authorize(creds)
 
 # === Akses Spreadsheet dan Sheet ===
