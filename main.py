@@ -17,6 +17,7 @@ with open("google_credentials.json", "w") as f:
     f.write(os.getenv("GOOGLE_CREDS"))
 
 creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
