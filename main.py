@@ -2,22 +2,21 @@ import telebot
 import gspread
 import os
 import pytz
+import json
+import threading
+import time
 from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
-import json
 
-# === TOKEN BOT TELEGRAM & ADMIN ===
+# === Ambil token dari ENV ===
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 bot = telebot.TeleBot(TOKEN)
 
-# === AMANKAN CREDENTIALS GOOGLE ===
-with open("google_credentials.json", "w") as f:
-    f.write(os.getenv("GOOGLE_CREDS"))
-
-creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
+# === Setup Google Sheet Credentials dari ENV ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
@@ -60,7 +59,7 @@ def simpan_transaksi(message, menu, harga, hpp):
         jumlah = int(message.text)
         zona_wib = pytz.timezone('Asia/Jakarta')
         waktu = datetime.now(zona_wib).strftime('%H:%M:%S')
-        tanggal = datetime.today().strftime("%Y-%m-%d")
+        tanggal = datetime.now(zona_wib).strftime("%Y-%m-%d")
 
         total = jumlah * harga
         laba = jumlah * (harga - hpp)
@@ -94,10 +93,51 @@ def simpan_transaksi(message, menu, harga, hpp):
             rekap_sheet.append_row([tanggal, total_hari_ini, laba_hari_ini])
 
         # Balasan ke user
-        bot.send_message(message.chat.id, f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}")
+        bot.send_message(message.chat.id, f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}\nLaba: Rp{laba}")
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Terjadi kesalahan:\n{e}")
 
-# === Mulai Polling ===
+# === Reset Stok Harian Otomatis ===
+def reset_stok_harian():
+    zona_wib = pytz.timezone('Asia/Jakarta')
+    hari_ini = datetime.now(zona_wib).strftime('%Y-%m-%d')
+
+    stok_data = menu_sheet.get_all_records()
+    sisa_stok_dict = {}
+    total_sisa = 0
+
+    for i, row in enumerate(stok_data):
+        sisa_stok = row["Stok_Awal"]
+        sisa_stok_dict[row["Menu"]] = sisa_stok
+        total_sisa += sisa_stok
+        menu_sheet.update_acell(f"D{i+2}", 100)  # Reset ke 100
+
+    # Gabungkan sisa stok per menu
+    detail_sisa = "\n".join([f"{menu}: {stok}" for menu, stok in sisa_stok_dict.items()])
+
+    # Tambahkan ke REKAP_HARIAN
+    rekap_data = rekap_sheet.get_all_records()
+    tanggal_list = [r["Tanggal"] for r in rekap_data]
+
+    if hari_ini in tanggal_list:
+        row_idx = tanggal_list.index(hari_ini) + 2
+        rekap_sheet.update_acell(f"D{row_idx}", detail_sisa)
+        rekap_sheet.update_acell(f"E{row_idx}", total_sisa)
+    else:
+        rekap_sheet.append_row([hari_ini, 0, 0, detail_sisa, total_sisa])
+
+# === Jalankan reset setiap hari jam 00:00 ===
+def jadwal_reset_stok():
+    while True:
+        zona_wib = pytz.timezone('Asia/Jakarta')
+        sekarang = datetime.now(zona_wib)
+        if sekarang.hour == 0 and sekarang.minute == 0:
+            reset_stok_harian()
+            time.sleep(60)  # Tunggu 1 menit agar tidak dobel
+        time.sleep(30)
+
+threading.Thread(target=jadwal_reset_stok, daemon=True).start()
+
+# === Mulai Polling Bot ===
 bot.polling()
