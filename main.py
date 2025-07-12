@@ -94,7 +94,7 @@ def simpan_transaksi(message, menu, harga, hpp):
             rekap_sheet.append_row([tanggal, total_hari_ini, laba_hari_ini])
 
         # Balasan ke user
-        bot.send_message(message.chat.id, f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}\nLaba: Rp{laba}")
+        bot.send_message(message.chat.id, f"✅ Transaksi dicatat!\nMenu: {menu}\nJumlah: {jumlah}\nTotal: Rp{total}")
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Terjadi kesalahan:\n{e}")
